@@ -7,7 +7,7 @@
  *
  * @author Gabriel Henrique de Souza (ghdesouza@gmail.com)
  *
- * @date january 15, 2019
+ * @date february 13, 2019
  *
  * @copyright Distributed under the Mozilla Public License 2.0 ( https://opensource.org/licenses/MPL-2.0 )
  *
@@ -400,7 +400,7 @@ int Graph<N, E>::add_edge(E edge, int id1, int id2){
 	for(initial_position = 0; initial_position < this->amount_nodes && this->id_nodes[initial_position] != id1; initial_position++);
 	if(this->id_nodes[initial_position] != id1) return false;
 	
-	if(this->edges_slack[initial_position] == 0) this->extend_edges(initial_position);
+	if(this->edges_slack[initial_position] == 0) this->extend_edges(initial_position+1);
 	
 	this->edges[initial_position][this->amount_edges[initial_position]] = edge;
 	this->edges_destiny[initial_position][this->amount_edges[initial_position]] = id2;
