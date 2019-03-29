@@ -7,7 +7,7 @@
  *
  * @author Gabriel Henrique de Souza (ghdesouza@gmail.com)
  *
- * @date january 15, 2019
+ * @date march 29, 2019
  *
  * @copyright Distributed under the Mozilla Public License 2.0 ( https://opensource.org/licenses/MPL-2.0 )
  *
@@ -24,10 +24,12 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <iostream>
 #ifdef _OPENMP
 	#include <omp.h>
 #endif
 
+using namespace std;
 
 /**
  * @class Differential_Evolution
@@ -59,6 +61,8 @@ class Differential_Evolution{
 		
 		T LS; /**< Local Search Probability */
 		
+		int mutation_type; /**< Type of mutation that is used in DE: 0 - rand_1, 1 - best_1, 2 - target_to_rand, 3 - target_to_best, 4 - rand_2, 5 - best_2 */
+		
 		bool agent_repair; /**< show if exist agent_repair_function */
 		
 		bool parallel; /**< show if next_generation is parallelized */
@@ -78,18 +82,26 @@ class Differential_Evolution{
 		void create_agent_basic(T* agent);
 		
 		/**
-		* @brief Function that create a new agent based in DE moviment or Local Search
+		* @brief Function that create a mutated agent based in rand 1 operator
 		* @details Move the agent based in other 3 differentes agents using the equation:
-		* Y = (R) x (A + F x (B-C)) + (!R) x X where R is a boolenan vector created randomicaly with the CR probability.
+		* Y = (A + F x (B-C)) where A, B, and C is a 3 different random agents
 		* The new agent will saved in a private vector of class "temporaly_population" in same position that agent_x.
-		* If the Local Search probability is bigger then zero so this case is avaliable before move the agent.
 		* @param agent_x - Agent position that will moved
-		* @param agent_a - First agent position used for move the agent_x
-		* @param agent_b - Second agent position used for move the agent_x
-		* @param agent_c - Third agent position used for move the agent_x
 		* @return none
 		*/
-		void create_movement(int agent_x, int agent_a, int agent_b, int agent_c);
+		void mutation_rand_1(int agent_x);
+		
+		void mutation_best_1(int agent_x);
+		
+		void mutation_target_rand(int agent_x);
+		
+		void mutation_target_best(int agent_x);
+		
+		void mutation_rand_2(int agent_x);
+		
+		void mutation_best_2(int agent_x);
+		
+		void crossover(int agent_x);
 		
 		/**
 		* @brief Try to move the agent of temporaly population to population
@@ -98,7 +110,7 @@ class Differential_Evolution{
 		* @param agent_x - Agent position that will moved
 		* @return none
 		*/
-		void try_move(int agent_x);
+		void selection(int agent_x);
 		
     public:
 
@@ -112,6 +124,7 @@ class Differential_Evolution{
 		* @return none
 		*/
         Differential_Evolution(int dimension, int population_size, T (*fitness_function)(T* agent), T F, T CR);
+        Differential_Evolution(){}
 		
 		/**
 		* @brief Destructor
@@ -214,6 +227,17 @@ class Differential_Evolution{
 		*/
 		void set_F(T F){this->F = F;}
 		
+		void set_mutation_type(string type){
+			if(type == "rand1")	this->mutation_type = 0;
+			else if(type == "best1") this->mutation_type = 1;
+			else if(type == "target_rand") this->mutation_type = 2;
+			else if(type == "target_best") this->mutation_type = 3;
+			else if(type == "rand2") this->mutation_type = 4;
+			else if(type == "best2") this->mutation_type = 5;
+			else printf("ERROR (DE): invalid type of mutation");
+			return;
+		}
+		
 		/**
 		* @brief Set if next generation is parallelized
 		* @param parallel - bool that show if next_generation is parallelized
@@ -278,6 +302,7 @@ Differential_Evolution<T>::Differential_Evolution(int dimension, int population_
 	this->F = F;
 	this->CR = CR;
 	this->LS = 0;
+	this->mutation_type = 0;
 	this->amount_fitness_evaluation = 0;
 	this->agent_repair = false;
 	this->parallel = false;
@@ -290,11 +315,11 @@ Differential_Evolution<T>::Differential_Evolution(int dimension, int population_
 		this->create_agent_basic(this->population[i]);
 		this->temporaly_population[i] = new T[this->dimension];
 	}
-	this->fitness[0] = this->fitness_function(population[0]);
+	this->fitness[0] = this->fitness_function(this->population[0]);
 	this->amount_fitness_evaluation++;
 	this->best_agent_position = 0;
 	for(int i = 1; i < this->population_size; i++){
-		this->fitness[i] = this->fitness_function(population[i]);
+		this->fitness[i] = this->fitness_function(this->population[i]);
 		this->amount_fitness_evaluation++;
 		if(this->fitness[i] < this->fitness[this->best_agent_position]) this->best_agent_position = i;		
 	}
@@ -305,8 +330,8 @@ template<typename T>
 Differential_Evolution<T>::~Differential_Evolution(){
 
 	for(int i = 0; i < this->population_size; i++){
-		delete[] this->population[i] = new T[this->dimension];
-		delete[] this->temporaly_population[i] = new T[this->dimension];
+		delete[] this->population[i];
+		delete[] this->temporaly_population[i];
 	}	delete[] this->population;
 		delete[] this->temporaly_population;
 		delete[] this->fitness;
@@ -372,31 +397,115 @@ void Differential_Evolution<T>::set_local_search(void (*local_search_function)(T
 }
 
 template<typename T>
-void Differential_Evolution<T>::create_movement(int agent_x, int agent_a, int agent_b, int agent_c){
-	
-	if((((T)rand())/RAND_MAX) < this->LS){
+void Differential_Evolution<T>::mutation_rand_1(int agent_x){
 
-		this->local_search_function(this->population[agent_x], this->temporaly_population[agent_x]);
+	int a, b, c;
+	a = rand()%this->population_size;
+	b = rand()%this->population_size;
+	c = rand()%this->population_size;
+	while(b == a) b = (b+1)%this->population_size;
+	while(c == a || c == b) c = (c+1)%this->population_size;
+	for(int i = 0; i < this->dimension; i++){
+		this->temporaly_population[agent_x][i] = this->population[a][i]
+												 + this->F*(this->population[b][i]-this->population[c][i]);
+	}	
+}
 
-	}else{
-			
-		int R = rand()%this->dimension;
-		for(int i = 0; i < this->dimension; i++){
-			if((((T)rand())/RAND_MAX) < CR || i == R){
-				this->temporaly_population[agent_x][i] = this->population[agent_a][i] + F*(this->population[agent_b][i]-this->population[agent_c][i]);
-			}else{
-				this->temporaly_population[agent_x][i] = this->population[agent_x][i];
-			}
-		}
-		
+template<typename T>
+void Differential_Evolution<T>::mutation_best_1(int agent_x){
+
+	int a, b;
+	a = rand()%this->population_size;
+	b = rand()%this->population_size;
+	while(b == a) b = (b+1)%this->population_size;
+	for(int i = 0; i < this->dimension; i++){
+		this->temporaly_population[agent_x][i] = this->population[this->best_agent_position][i] 
+												 + this->F*(this->population[a][i]-this->population[b][i]);
 	}
-	
-	if(this->agent_repair) this->agent_repair_function(this->temporaly_population[agent_x]);
+}
+
+template<typename T>
+void Differential_Evolution<T>::mutation_target_rand(int agent_x){
+
+	int a, b, c;
+	a = rand()%this->population_size;
+	b = rand()%this->population_size;
+	c = rand()%this->population_size;
+	while(b == a) b = (b+1)%this->population_size;
+	while(c == a || c == b) c = (c+1)%this->population_size;
+	for(int i = 0; i < this->dimension; i++){
+		this->temporaly_population[agent_x][i] = this->population[agent_x][i]
+												 + this->F*(this->population[a][i]-this->population[agent_x][i])
+												 + this->F*(this->population[b][i]-this->population[c][i]);
+	}	
+}
+
+template<typename T>
+void Differential_Evolution<T>::mutation_target_best(int agent_x){
+
+	int a, b, c;
+	a = rand()%this->population_size;
+	b = rand()%this->population_size;
+	while(b == a) b = (b+1)%this->population_size;
+	for(int i = 0; i < this->dimension; i++){
+		this->temporaly_population[agent_x][i] = this->population[agent_x][i]
+												 + this->F*(this->population[this->best_agent_position][i]-this->population[agent_x][i])
+												 + this->F*(this->population[a][i]-this->population[b][i]);
+	}	
+}
+
+template<typename T>
+void Differential_Evolution<T>::mutation_rand_2(int agent_x){
+
+	int a, b, c, d, e;
+	a = rand()%this->population_size;
+	b = rand()%this->population_size;
+	c = rand()%this->population_size;
+	d = rand()%this->population_size;
+	e = rand()%this->population_size;
+	while(b == a) b = (b+1)%this->population_size;
+	while(c == a || c == b) c = (c+1)%this->population_size;
+	while(d == a || d == b || d == c) d = (d+1)%this->population_size;;
+	while(e == a || e == b || e == c || e == d) e = (e+1)%this->population_size;
+	for(int i = 0; i < this->dimension; i++){
+		this->temporaly_population[agent_x][i] = this->population[a][i]
+												 + this->F*(this->population[b][i]-this->population[c][i])
+												 + this->F*(this->population[d][i]-this->population[e][i]);
+	}	
+}
+
+template<typename T>
+void Differential_Evolution<T>::mutation_best_2(int agent_x){
+
+	int a, b, c, d, e;
+	a = rand()%this->population_size;
+	b = rand()%this->population_size;
+	c = rand()%this->population_size;
+	d = rand()%this->population_size;
+	e = rand()%this->population_size;
+	while(b == a) b = (b+1)%this->population_size;
+	while(c == a || c == b) c = (c+1)%this->population_size;
+	while(d == a || d == b || d == c) d = (d+1)%this->population_size;
+	for(int i = 0; i < this->dimension; i++){
+		this->temporaly_population[agent_x][i] = this->population[this->best_agent_position][i]
+												 + this->F*(this->population[a][i]-this->population[b][i])
+												 + this->F*(this->population[c][i]-this->population[d][i]);
+	}	
+}
+
+template<typename T>
+void Differential_Evolution<T>::crossover(int agent_x){
+
+	int R = rand()%this->dimension;
+	for(int i = 0; i < this->dimension; i++){
+		if((((T)rand())/RAND_MAX) < this->CR || i == R);
+		else this->temporaly_population[agent_x][i] = this->population[agent_x][i];
+	}
 	
 }
 
 template<typename T>
-void Differential_Evolution<T>::try_move(int agent_x){
+void Differential_Evolution<T>::selection(int agent_x){
 	
 	T new_fitness = this->fitness_function(this->temporaly_population[agent_x]);
 	T *swap_agent;
@@ -416,54 +525,86 @@ void Differential_Evolution<T>::try_move(int agent_x){
 template<typename T>
 void Differential_Evolution<T>::next_generation(){
 	
-	int a, b, c;
-	for(int i = 0; i < this->population_size; i++){
-		a = rand()%this->population_size;
-		b = rand()%this->population_size;
-		c = rand()%this->population_size;
-		while(a == i) a = rand()%this->population_size;
-		while(b == i || b == a) b = rand()%this->population_size;
-		while(c == i || c == a || c == b) c = rand()%this->population_size;
-		this->create_movement(i, a, b, c);
+	switch(this->mutation_type){
+		case 0:
+			for(int agent_x = 0; agent_x < this->population_size; agent_x++){
+				this->mutation_rand_1(agent_x);
+			}
+		break;
+		case 1:
+			for(int agent_x = 0; agent_x < this->population_size; agent_x++){
+				this->mutation_best_1(agent_x);
+			}
+		break;
+		case 2:
+			for(int agent_x = 0; agent_x < this->population_size; agent_x++){
+				this->mutation_target_rand(agent_x);
+			}
+		break;
+		case 3:
+			for(int agent_x = 0; agent_x < this->population_size; agent_x++){
+				this->mutation_target_best(agent_x);
+			}
+		break;
+		case 4:
+			for(int agent_x = 0; agent_x < this->population_size; agent_x++){
+				this->mutation_rand_2(agent_x);
+			}
+		break;
+		case 5:
+			for(int agent_x = 0; agent_x < this->population_size; agent_x++){
+				this->mutation_best_2(agent_x);
+			}
+		break;
+		
 	}
+
+	for(int agent_x = 0; agent_x < this->population_size; agent_x++){
+		if((((T)rand())/RAND_MAX) < this->LS){
+			this->local_search_function(this->population[agent_x], this->temporaly_population[agent_x]);
+		}else{
+			this->crossover(agent_x);
+		}
+		if(this->agent_repair) this->agent_repair_function(this->temporaly_population[agent_x]);
+	}
+
 	this->amount_fitness_evaluation += this->population_size;
 	#ifdef _OPENMP
 		if(this->parallel){
 			#pragma omp parallel for
 			for(int i = 0; i < this->population_size; i++){
-				this->try_move(i);
+				this->selection(i);
 			}
 		}else{
 			for(int i = 0; i < this->population_size; i++){
-				this->try_move(i);
+				this->selection(i);
 			}	
 		}
 	#else
 		for(int i = 0; i < this->population_size; i++){
-			this->try_move(i);
+			this->selection(i);
 		}
 	#endif
-	
-	
+
 }
 
 template<typename T>
 void Differential_Evolution<T>::evolution(T stop_value, int max_stoped_generation, int max_generation){
 	
-	clock_t time_base;
-	time_base = clock();
+	//clock_t time_base;
+	//time_base = clock();
 	
 	int amount_generations_stoped = 0;
 	T last_fitness = this->get_mean_fitness();
-	printf("(Running): best: %e  mean:%e  generation:0\r", this->get_best_fitness(), this->get_mean_fitness());
-	fflush(stdout);
+	//printf("(Running): best: %e  mean:%e  generation:0\r", this->get_best_fitness(), this->get_mean_fitness());
+	//fflush(stdout);
 	for(int i = 0 ; i < max_generation && amount_generations_stoped < max_stoped_generation && this->fitness[this->best_agent_position] > stop_value; i++){
 
-		if(((clock()-time_base)/((double)CLOCKS_PER_SEC)) > 4){
-			time_base = clock();
-			printf("(Running): best: %e  mean:%e  generation:%d\r", this->get_best_fitness(), this->get_mean_fitness(), i);
-			fflush(stdout);
-		}
+		//if(((clock()-time_base)/((double)CLOCKS_PER_SEC)) > 4){
+			//time_base = clock();
+			//printf("(Running): best: %e  mean:%e  generation:%d\r", this->get_best_fitness(), this->get_mean_fitness(), i);
+			//fflush(stdout);
+		//}
 
 		this->next_generation();
 		if(this->get_mean_fitness() < last_fitness){
@@ -471,8 +612,8 @@ void Differential_Evolution<T>::evolution(T stop_value, int max_stoped_generatio
 			last_fitness = this->get_mean_fitness();
 		}else amount_generations_stoped++;
 	}
-	printf("                                                                      \r");
-	fflush(stdout);
+	//printf("                                                                      \r");
+	//fflush(stdout);
 	
 }
 
