@@ -7,7 +7,7 @@
  *
  * @author Gabriel Henrique de Souza (ghdesouza@gmail.com)
  *
- * @date march 29, 2019
+ * @date September 17, 2019
  *
  * @copyright Distributed under the Mozilla Public License 2.0 ( https://opensource.org/licenses/MPL-2.0 )
  *
@@ -24,11 +24,11 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#include <iostream>
 #ifdef _OPENMP
 	#include <omp.h>
 #endif
 
+#include <iostream>
 using namespace std;
 
 /**
@@ -90,17 +90,18 @@ class Differential_Evolution{
 		* @return none
 		*/
 		void mutation_rand_1(int agent_x);
+		void mutation_best_1(int agent_x);		
+		void mutation_target_rand(int agent_x);		
+		void mutation_target_best(int agent_x);		
+		void mutation_rand_2(int agent_x);		
+		void mutation_best_2(int agent_x);		
 		
-		void mutation_best_1(int agent_x);
-		
-		void mutation_target_rand(int agent_x);
-		
-		void mutation_target_best(int agent_x);
-		
-		void mutation_rand_2(int agent_x);
-		
-		void mutation_best_2(int agent_x);
-		
+		/**
+		* @brief Function to do a crossover between the population and the mutation population
+		* @details Assembly between the populations
+		* @param agent_x - Agent position
+		* @return none
+		*/
 		void crossover(int agent_x);
 		
 		/**
@@ -227,16 +228,12 @@ class Differential_Evolution{
 		*/
 		void set_F(T F){this->F = F;}
 		
-		void set_mutation_type(string type){
-			if(type == "rand1")	this->mutation_type = 0;
-			else if(type == "best1") this->mutation_type = 1;
-			else if(type == "target_rand") this->mutation_type = 2;
-			else if(type == "target_best") this->mutation_type = 3;
-			else if(type == "rand2") this->mutation_type = 4;
-			else if(type == "best2") this->mutation_type = 5;
-			else printf("ERROR (DE): invalid type of mutation");
-			return;
-		}
+		/**
+		* @brief Set the mutation type
+		* @param type - type of mutation: rand1, best1, target_rand, target_best, rand2, best2
+		* @return none
+		*/
+		void set_mutation_type(string type);
 		
 		/**
 		* @brief Set if next generation is parallelized
@@ -397,6 +394,18 @@ void Differential_Evolution<T>::set_local_search(void (*local_search_function)(T
 }
 
 template<typename T>
+void Differential_Evolution<T>::set_mutation_type(string type){
+	if(type == "rand1")	this->mutation_type = 0;
+	else if(type == "best1") this->mutation_type = 1;
+	else if(type == "target_rand") this->mutation_type = 2;
+	else if(type == "target_best") this->mutation_type = 3;
+	else if(type == "rand2") this->mutation_type = 4;
+	else if(type == "best2") this->mutation_type = 5;
+	else printf("ERROR (DE): invalid type of mutation");
+	return;
+}
+
+template<typename T>
 void Differential_Evolution<T>::mutation_rand_1(int agent_x){
 
 	int a, b, c;
@@ -443,7 +452,7 @@ void Differential_Evolution<T>::mutation_target_rand(int agent_x){
 template<typename T>
 void Differential_Evolution<T>::mutation_target_best(int agent_x){
 
-	int a, b, c;
+	int a, b;
 	a = rand()%this->population_size;
 	b = rand()%this->population_size;
 	while(b == a) b = (b+1)%this->population_size;
@@ -477,12 +486,11 @@ void Differential_Evolution<T>::mutation_rand_2(int agent_x){
 template<typename T>
 void Differential_Evolution<T>::mutation_best_2(int agent_x){
 
-	int a, b, c, d, e;
+	int a, b, c, d;
 	a = rand()%this->population_size;
 	b = rand()%this->population_size;
 	c = rand()%this->population_size;
 	d = rand()%this->population_size;
-	e = rand()%this->population_size;
 	while(b == a) b = (b+1)%this->population_size;
 	while(c == a || c == b) c = (c+1)%this->population_size;
 	while(d == a || d == b || d == c) d = (d+1)%this->population_size;
@@ -591,20 +599,20 @@ void Differential_Evolution<T>::next_generation(){
 template<typename T>
 void Differential_Evolution<T>::evolution(T stop_value, int max_stoped_generation, int max_generation){
 	
-	//clock_t time_base;
-	//time_base = clock();
+	clock_t time_base;
+	time_base = clock();
 	
 	int amount_generations_stoped = 0;
 	T last_fitness = this->get_mean_fitness();
-	//printf("(Running): best: %e  mean:%e  generation:0\r", this->get_best_fitness(), this->get_mean_fitness());
-	//fflush(stdout);
+	printf("(Running): best: %e  mean:%e  generation:0\r", this->get_best_fitness(), this->get_mean_fitness());
+	fflush(stdout);
 	for(int i = 0 ; i < max_generation && amount_generations_stoped < max_stoped_generation && this->fitness[this->best_agent_position] > stop_value; i++){
 
-		//if(((clock()-time_base)/((double)CLOCKS_PER_SEC)) > 4){
-			//time_base = clock();
-			//printf("(Running): best: %e  mean:%e  generation:%d\r", this->get_best_fitness(), this->get_mean_fitness(), i);
-			//fflush(stdout);
-		//}
+		if(((clock()-time_base)/((double)CLOCKS_PER_SEC)) > 2){
+			time_base = clock();
+			printf("(Running): best: %e  mean:%e  generation:%d\r", this->get_best_fitness(), this->get_mean_fitness(), i);
+			fflush(stdout);
+		}
 
 		this->next_generation();
 		if(this->get_mean_fitness() < last_fitness){
@@ -612,8 +620,8 @@ void Differential_Evolution<T>::evolution(T stop_value, int max_stoped_generatio
 			last_fitness = this->get_mean_fitness();
 		}else amount_generations_stoped++;
 	}
-	//printf("                                                                      \r");
-	//fflush(stdout);
+	printf("                                                                      \r");
+	fflush(stdout);
 	
 }
 

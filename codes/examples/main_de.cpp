@@ -5,7 +5,7 @@
 #include <iostream>
 using namespace std;
 
-int dim = 25;
+int dim = 80;
 double cr = 0.9;
 double f = 0.7;
 int NP = 1000;
@@ -26,6 +26,7 @@ int main(){
 	de->set_local_search(local_search_function, bl);
 	de->clean_amount_fitness_evaluation();
 	de->new_population(create_agent_function);
+	de->set_mutation_type("target_best");
 	de->set_parallel(true);
 
 	de->evolution(1e-5, 1e+1, 1e+9);
