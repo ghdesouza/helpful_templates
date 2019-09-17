@@ -173,7 +173,7 @@ void Naive_Bayes_Parzen_Window<T>::fit(Dataset<T>* data){
 			this->h_opt_2[k][j] = temp_T*variance(this->X[k][j], this->amount_trials_per_label[k]);
 			if(this->h_opt_2[k][j] < 1e-8){
 				this->h_opt_2[k][j] = RAND_MAX;
-				printf("\n\nERROR: variance of %dth dimension of %dth label is vary small!\n\n", j, k);
+				//printf("\n\nERROR: variance of %dth dimension of %dth label is vary small!\n\n", j, k);
 			}
 		}
 	}
