@@ -45,7 +45,7 @@ class Naive_Bayes_Gaussian : public Classifiers<T>{
 		
 		void fit(T** data, int* labels, int data_size);
 		int predict(T *X);
-		T get_fitness(int label){}
+		T get_fitness(int label){return this->fitness[label-1];}
 };
 
 template<typename T>
