@@ -25,7 +25,6 @@
 #include <stdlib.h>
 
 #include "basic_stats.tpp"
-#include "dataset.tpp"
 
 using namespace std;
 
@@ -42,22 +41,11 @@ class Classifiers{
 		virtual int get_dimension(){return this->dimension;}
 		virtual int get_amount_labels(){return this->amount_labels;}
 		
-		virtual void fit(Dataset<T>* data) = 0;
+		virtual void fit(T** data, int* labels, int data_size) = 0;
 		virtual int predict(T *X) = 0;
 		virtual T get_fitness(int label) = 0;
 		
-		virtual float accurace(Dataset<T>* data){
-			float correct = 0.0;
-			int amount_trials = data->get_test_size();
-			for(int i = 0; i < amount_trials; i++){
-				if(this->predict(data->get_trial_test(i)) == data->get_label_test(i)){
-					correct += 1;
-				}
-			}
-			return correct/amount_trials;
-		}
-		
-		virtual float kappa(Dataset<T>* data){
+		virtual float kappa(T** data, int* labels, int data_size){
 			int** confusion_matrix = new int*[this->amount_labels];
 			for(int i = 0; i < this->amount_labels; i++){
 				confusion_matrix[i] = new int[this->amount_labels];
@@ -65,11 +53,11 @@ class Classifiers{
 					confusion_matrix[i][j] = 0;
 				}
 			}
-			int amount_trials = data->get_test_size();
+			int amount_trials;
+			amount_trials = data_size;
 			for(int i = 0; i < amount_trials; i++){
-				confusion_matrix[data->get_label_test(i)-1][this->predict(data->get_trial_test(i))-1]++;
-			}
-			
+				confusion_matrix[labels[i]-1][this->predict(data[i])-1]++;
+			}			
 			float p_0, p_e = 0.0, total = 0.0, correct = 0.0;
 			float *expected = new float[this->amount_labels];
 			float *finded = new float[this->amount_labels];
@@ -98,31 +86,46 @@ class Classifiers{
 			
 		}
 		
-		virtual float cross_entropy(Dataset<T>* data){
-			T crossentropy = 0;
-			int temp_class;
-
-			for(int i = 0; i < data->get_test_size(); i++){
-				temp_class = this->predict(data->get_trial_test(i));
-				for(int c = 1; c <= this->amount_labels; c++){
-					if(c == data->get_label_test(i)) crossentropy -= log(this->get_fitness(c));
-					else crossentropy -= log(1-this->get_fitness(c));
+		virtual float accurace(T** data, int* labels, int data_size){
+			float correct = 0.0;
+			for(int i = 0; i < data_size; i++){
+				if(this->predict(data[i]) == labels[i]){
+					correct += 1;
 				}
 			}
-			return crossentropy/(data->get_test_size());
+			
+			return correct/data_size;
+		}
+		
+		virtual float cross_entropy(T** data, int* labels, int data_size){
+			T crossentropy = 0.0;
+			int temp_class;
+			T temp_val;
+
+			// LOG(0.01) ~ -4.6052
+			for(int i = 0; i < data_size; i++){
+				temp_class = this->predict(data[i]);
+				for(int c = 1; c <= this->amount_labels; c++){
+					if(c == labels[i]) temp_val = log(this->get_fitness(c));
+					else temp_val = log(1-this->get_fitness(c));
+					if(temp_val > -4.6052) crossentropy -= temp_val;
+					else crossentropy += 4.6052;
+				}
+			}
+			return crossentropy/data_size;
 		}
 
-		virtual float mean_squared_error(Dataset<T>* data){
+		virtual float mean_squared_error(T** data, int* labels, int data_size){
 			T error = 0;
 			int temp_class;
 
-			for(int i = 0; i < data->get_test_size(); i++){
-				temp_class = this->predict(data->get_trial_test(i));
-				error += pow((1-this->get_fitness(data->get_label_test(i))), 2);
+			for(int i = 0; i < data_size; i++){
+				temp_class = this->predict(data[i]);
+				error += pow((1-this->get_fitness(labels[i])), 2);
 			}
-			return error/data->get_test_size();
+			return error/data_size;
+			
 		}
-
 };
 
 #endif // CLASSIFIERS_TPP

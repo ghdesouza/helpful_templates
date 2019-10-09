@@ -47,7 +47,7 @@ class Naive_Bayes_Parzen_Window : public Classifiers<T>{
 		Naive_Bayes_Parzen_Window(int dimension, int amount_labels);
 		~Naive_Bayes_Parzen_Window();
 		
-		void fit(Dataset<T>* data);
+		void fit(T** data, int* labels, int data_size);
 		int predict(T *X);
 		T get_fitness(int label){return this->fitness[label-1];}
 };
@@ -131,7 +131,7 @@ void Naive_Bayes_Parzen_Window<T>::calculate_py_X(T *X){
 }
 
 template<typename T>
-void Naive_Bayes_Parzen_Window<T>::fit(Dataset<T>* data){
+void Naive_Bayes_Parzen_Window<T>::fit(T** data, int* labels, int data_size){
 
 	if(this->amount_trials != 0){
 		for(int k = 0; k < this->amount_labels; k++){
@@ -141,9 +141,9 @@ void Naive_Bayes_Parzen_Window<T>::fit(Dataset<T>* data){
 		}		delete[] this->X;
 	}
 
-	this->amount_trials = data->get_train_size();
+	this->amount_trials = data_size;
 	for(int i = 0; i < this->amount_labels; i++) this->amount_trials_per_label[i] = 0;
-	for(int i = 0; i < this->amount_trials; i++) this->amount_trials_per_label[data->get_label_train(i)-1]++;
+	for(int i = 0; i < this->amount_trials; i++) this->amount_trials_per_label[labels[i]-1]++;
 	
 	this->X = new T**[this->amount_labels];
 	for(int k = 0; k < this->amount_labels; k++){
@@ -157,9 +157,9 @@ void Naive_Bayes_Parzen_Window<T>::fit(Dataset<T>* data){
 	for(int k = 0; k < this->amount_labels; k++){
 		amount_trials_temp = 0;
 		for(int i = 0; i < amount_trials; i++){
-			if(k+1 == data->get_label_train(i)){
+			if(k+1 == labels[i]){
 				for(int j = 0; j < this->dimension; j++){
-					this->X[k][j][amount_trials_temp] = data->get_trial_train(i)[j];
+					this->X[k][j][amount_trials_temp] = data[i][j];
 				}
 				amount_trials_temp++;
 			}
